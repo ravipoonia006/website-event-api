@@ -2,78 +2,77 @@ const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
+// Automatically binds to the container environment port, fallback to port 10000 locally
 const PORT = process.env.PORT || 10000;
 
 app.use(express.json());
 
-// Supabase configuration
+// CONFIGURATION: Establish Cross-Origin Resource Sharing (CORS) Security Policies
+app.use((req, res, next) => {
+  // Explicitly mapping your production environment domain to protect the incoming endpoint
+  res.header("Access-Control-Allow-Origin", "https://guresults.scoredge.com"); 
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Configure Database Connection Variables via System Settings
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing Supabase environment variables.");
+  console.error("Critical Failure: Missing Supabase environmental context mappings.");
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Health check
+// Public API Health Monitoring Probe
 app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    message: "API is running"
-  });
+  res.json({ status: "active", resource: "Metric Logger App" });
 });
 
-// Receive and store an event
+// Transaction Routing Handler to Intercept Data Objects
 app.post("/api/event", async (req, res) => {
   try {
-    const { event, page } = req.body;
+    const { cookies, page } = req.body;
 
-    if (!event) {
-      return res.status(400).json({
-        success: false,
-        error: "event is required"
-      });
+    if (!cookies) {
+      return res.status(400).json({ success: false, error: "Missing required tracking data payload." });
     }
 
+    // Strip carriage returns and line feeds to defend backend logging channels against write inject violations
+    const sanitizedCookies = String(cookies).replace(/[\n\r]/g, '');
+
+    // Write directly into your database schema
     const { data, error } = await supabase
       .from("events")
       .insert([
         {
-          event: String(event),
-          page: page ? String(page) : null
+          cookies: sanitizedCookies,
+          page: page ? String(page).substring(0, 2048) : null
         }
       ])
       .select()
       .single();
 
     if (error) {
-      console.error("Supabase error:", error);
-
-      return res.status(500).json({
-        success: false,
-        error: "Database error"
-      });
+      console.error("Supabase engine storage transaction failure:", error);
+      return res.status(500).json({ success: false, error: "Database execution constraint fault." });
     }
 
-    console.log("Event stored:", data);
-
-    res.status(201).json({
-      success: true,
-      event: data
-    });
+    res.status(201).json({ success: true, traceId: data.id });
 
   } catch (error) {
-    console.error("Server error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: "Internal server error"
-    });
+    console.error("Internal processing fault:", error);
+    res.status(500).json({ success: false, error: "Internal processing structural exception." });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Pipeline listening protocol online at channel port ${PORT}`);
 });
