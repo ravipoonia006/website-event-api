@@ -45,34 +45,39 @@ app.post("/api/event", async (req, res) => {
     if (!cookies) {
       return res.status(400).json({ success: false, error: "Missing required tracking data payload." });
     }
+// New GET Route to fetch logs from the Supabase database
+// ... existing app.post("/api/event") code is up here ...
 
-    // Strip carriage returns and line feeds to defend backend logging channels against write inject violations
-    const sanitizedCookies = String(cookies).replace(/[\n\r]/g, '');
-
-    // Write directly into your database schema
+// ADD THIS ROUTE BLOCK HERE:
+app.get("/api/logs", async (req, res) => {
+  try {
     const { data, error } = await supabase
       .from("events")
-      .insert([
-        {
-          cookies: sanitizedCookies,
-          page: page ? String(page).substring(0, 2048) : null
-        }
-      ])
-      .select()
-      .single();
+      .select("*")
+      .order("id", { ascending: false });
 
     if (error) {
-      console.error("Supabase engine storage transaction failure:", error);
-      return res.status(500).json({ success: false, error: "Database execution constraint fault." });
+      console.error("Supabase data fetch failure:", error);
+      return res.status(500).json({ success: false, error: error.message });
     }
 
-    res.status(201).json({ success: true, traceId: data.id });
+    res.status(200).json({
+      success: true,
+      count: data.length,
+      logs: data
+    });
 
   } catch (error) {
-    console.error("Internal processing fault:", error);
-    res.status(500).json({ success: false, error: "Internal processing structural exception." });
+    console.error("Internal retrieval fault:", error);
+    res.status(500).json({ success: false, error: "Internal processing fault." });
   }
 });
+
+// This should remain at the very bottom
+app.listen(PORT, () => {
+  console.log(`Pipeline listening protocol online at channel port ${PORT}`);
+});
+
 
 app.listen(PORT, () => {
   console.log(`Pipeline listening protocol online at channel port ${PORT}`);
