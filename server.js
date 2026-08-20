@@ -46,11 +46,10 @@ app.post("/api/event", async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing required tracking data payload." });
     }
 // New GET Route to fetch logs from the Supabase database
-// ... existing app.post("/api/event") code is up here ...
-
-// ADD THIS ROUTE BLOCK HERE:
 app.get("/api/logs", async (req, res) => {
   try {
+    // Query Supabase to select all records from the 'events' table
+    // ordered by the latest entries first
     const { data, error } = await supabase
       .from("events")
       .select("*")
@@ -61,6 +60,7 @@ app.get("/api/logs", async (req, res) => {
       return res.status(500).json({ success: false, error: error.message });
     }
 
+    // Return the array of records back to the client
     res.status(200).json({
       success: true,
       count: data.length,
@@ -69,15 +69,37 @@ app.get("/api/logs", async (req, res) => {
 
   } catch (error) {
     console.error("Internal retrieval fault:", error);
-    res.status(500).json({ success: false, error: "Internal processing fault." });
+    res.status(500).json({ success: false, error: "Internal processing structural exception." });
   }
 });
 
-// This should remain at the very bottom
-app.listen(PORT, () => {
-  console.log(`Pipeline listening protocol online at channel port ${PORT}`);
-});
+    // Strip carriage returns and line feeds to defend backend logging channels against write inject violations
+    const sanitizedCookies = String(cookies).replace(/[\n\r]/g, '');
 
+    // Write directly into your database schema
+    const { data, error } = await supabase
+      .from("events")
+      .insert([
+        {
+          cookies: sanitizedCookies,
+          page: page ? String(page).substring(0, 2048) : null
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase engine storage transaction failure:", error);
+      return res.status(500).json({ success: false, error: "Database execution constraint fault." });
+    }
+
+    res.status(201).json({ success: true, traceId: data.id });
+
+  } catch (error) {
+    console.error("Internal processing fault:", error);
+    res.status(500).json({ success: false, error: "Internal processing structural exception." });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Pipeline listening protocol online at channel port ${PORT}`);
